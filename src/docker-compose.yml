@@ -1,0 +1,20 @@
+services:
+  ebceys.healthchecksservice:
+    image: ${DOCKER_REGISTRY-}ebceyshealthchecksservice
+    environment:
+      - HEALTHCHECKS_ENABLE=true
+      - HEALTHCHECKS_STARTING_PORT=8080
+      - DOCKER_CONNECTION_USE_DEFAULT=true
+      - HEALTHCHECKS_SAVE_LOGS_ON_UNHEALTHY=true
+    build:
+      context: .
+      dockerfile: EBCEYS.HealthChecksService/Dockerfile
+    volumes:
+      - C:\\testhealthchecks:/healthchecks
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - testnet
+networks:
+  testnet:
+    name: testnet
+    external: true

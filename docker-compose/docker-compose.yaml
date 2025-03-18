@@ -1,0 +1,91 @@
+services:
+  server-configuration:
+    container_name: server-configuration
+    hostname: server-configuration
+    environment:
+      - DOCKER_CONNECTION_USE_DEFAULT=true
+      - CONFIG_PROCESSOR_ENABLE=false
+      - CONFIG_PROCESSOR_CONFIGS_PATH=/storage/configs
+      - KEYS_STORAGE_PATH=/storage/keys
+      - KEYS_STORAGE_FORGET_OLD_KEYS=true
+    image: ebceys/conf-serv-slim:1.0.0
+    volumes:
+      - C:\\storage:/storage:rw
+      - C:\\server-configuration\data:/data:rw
+      - /var/run/docker.sock:/var/run/docker.sock
+    labels:
+      - healthchecks.enabled=true 
+      - healthchecks.port=8080 
+      - healthchecks.restart=true
+      - healthchecks.isebceys=true
+      - healthchecks.hostname=server-configuration
+    ports:
+      - "5007:3000"
+      - "5008:8080"
+    networks:
+      - testnet
+  ebceys.container-appstarter.rabbitmq:
+    container_name: rabbitmq
+    hostname: rabbitmq
+    image: docker.io/ebceys/rabbitmq:1.0.0
+    environment:
+      - CONFIGURATION_CONTAINER_TYPE_NAME=rabbitmq
+      - CONFIGURATION_SERVER_URI=http://server-configuration:3000
+      - CONFIGURATION_SAVE_DIRECTORY=/configs
+      - CONFIGURATION_BREAK_START_IF_NO_CONFIGS=true
+      - CONFIGURATION_REQUEST_PERIOD=00:00:10
+      - RABBITMQ_CONFIG_FILE=/configs/rabbitmq.conf
+      - HEALTHCHECKS_ENABLE=true
+      - HEALTHCHECKS_STARTING_PORT=8080
+      - APP_STARTER_RESTART_APP_ON_CONFIG_UPDATE=true
+      - CONFIGURATION_REQUEST_RETRIES=3
+      - CONFIGURATION_REQUEST_DELAY=00:00:05
+    labels:
+      - healthchecks.enabled=true 
+      - healthchecks.port=8080 
+      - healthchecks.restart=true
+      - healthchecks.isebceys=true
+      - healthchecks.hostname=rabbitmq
+    ports:
+      - "5675:5672"
+      - "15675:15672"
+      - "0:8080"
+    volumes:
+      - C:\\TestAppStarter:/configs:rw
+    networks:
+      - testnet
+    depends_on:
+      - server-configuration
+  ebceys.healthchecks:
+    container_name: healthchecks
+    image: ebceys/health-with-starter:1.0.0
+    networks:
+      - testnet
+    hostname: healthchecks
+    environment:
+      - HEALTHCHECKS_SAVE_LOGS_ON_UNHEALTHY=true
+      - HEALTHCHECKS_USE_PING=false
+      - HEALTHCHECKS_SERVICE_CONFIG_FILE=/healthz/checks.json
+      - LOG_SAVER_BASE_PATH=/healthz/logs
+      - DOCKER_CONNECTION_USE_DEFAULT=true
+      - CONFIGURATION_SERVER_URI=http://server-configuration:3000
+      - CONFIGURATION_SAVE_DIRECTORY=/healthz
+      - CONFIGURATION_REQUEST_RETRIES=3
+      - CONFIGURATION_REQUEST_DELAY=00:00:05
+      - CONFIGURATION_CONTAINER_TYPE_NAME=healthchecks
+      - APP_STARTER_ENABLE_HEALTHCHECKS=false
+      - APP_STARTER_RESTART_APP_ON_CONFIG_UPDATE=true
+      - APP_STARTER_EXECUTION_FILE=/app/EBCEYS.HealthChecksService
+      - CONFIGURATION_BREAK_START_IF_NO_CONFIGS=true
+      - HEALTHCHECKS_PROCESS_ONLY_IF_CONTAINER_RUNNING=true
+    volumes:
+      - C:\\testhealthchecks:/healthz:rw
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - 5010:8080
+    depends_on:
+      - server-configuration
+networks:
+  testnet:
+    name: testnet
+    external: true
