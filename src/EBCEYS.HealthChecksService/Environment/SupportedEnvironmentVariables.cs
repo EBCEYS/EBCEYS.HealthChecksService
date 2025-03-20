@@ -20,6 +20,7 @@ namespace EBCEYS.HealthChecksService.Environment
         private const string usePingHealthChecks = "HEALTHCHECKS_USE_PING";
         private const string servicesHCConfigFilePath = "HEALTHCHECKS_SERVICE_CONFIG_FILE";
         private const string processHCIfContainerIsRunning = "HEALTHCHECKS_PROCESS_ONLY_IF_CONTAINER_RUNNING";
+        private const string healthChecksUnhealthyCount = "HEALTHCHECKS_PROCESS_START_PROCESS_AFTER_UNHEALTHY_COUNT";
         //HC - HealthChecks
         public static ServiceEnvironmentVariable<string> HCEnabledLabel { get; } = new(healthChecksEnabledLabel, "healthchecks.enabled");
         public static ServiceEnvironmentVariable<string> HCPortLabel { get; } = new(healthChecksPortLabel, "healthchecks.port");
@@ -31,6 +32,7 @@ namespace EBCEYS.HealthChecksService.Environment
         public static ServiceEnvironmentVariable<bool> HCUsePing { get; } = new(usePingHealthChecks, false);
         public static ServiceEnvironmentVariable<string> HCServicesFile { get; } = new(servicesHCConfigFilePath, null);
         public static ServiceEnvironmentVariable<bool> HCProcessOnlyIfRunnung { get; } = new(processHCIfContainerIsRunning, true);
+        public static ServiceEnvironmentVariable<uint> HCUnhealthyCount { get; } = new(healthChecksUnhealthyCount, 5);
     }
     public static class SupportedDockerEnvironmentVariables
     {

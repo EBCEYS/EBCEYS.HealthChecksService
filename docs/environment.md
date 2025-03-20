@@ -18,6 +18,7 @@
 * *HEALTHCHECKS_USE_PING* - *true/false*. Необходимость добавления проверок здоровья через *ping*. **!!!ВАЖНО!!!** контейнер должен содержать *ping*. По умолчанию *false*.
 * *HEALTHCHECKS_SERVICE_CONFIG_FILE* - *FileString*. Путь до файла конфигурации проверок здоровья сервисов. По умолчанию *null*.
 * *HEALTHCHECKS_PROCESS_ONLY_IF_CONTAINER_RUNNING* - *true/false*. Запускать процессы обработки контейнера только если его статус *running*. По умолчанию *true*.
+* *HEALTHCHECKS_PROCESS_START_PROCESS_AFTER_UNHEALTHY_COUNT* - *unsigned int*. Кол-во срабатываний проверок со статусом *unhealthy* перед началом работы над контейнером. По умолчанию *5*.
 
 ## *DOCKER_CONNECTION_\**
 

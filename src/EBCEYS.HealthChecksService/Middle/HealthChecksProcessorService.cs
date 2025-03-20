@@ -14,7 +14,7 @@ namespace EBCEYS.HealthChecksService.Middle
     public class HealthChecksProcessorService(ILogger<HealthChecksProcessorService> logger, HealthCheckService health, ContainerProcessingQueueStorage queue, DockerController docker, IMemoryCache cache) : BackgroundService
     {
         private const string runningStatus = "running";
-        private readonly ConcurrentDictionary<string, HealthStatus> containerHealths = [];
+        private readonly ConcurrentDictionary<string, int> containerHealths = [];
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             logger.LogInformation("Starting healthchecks processor...");
@@ -35,7 +35,8 @@ namespace EBCEYS.HealthChecksService.Middle
                             if (healthStatus.Value.Status == HealthStatus.Unhealthy)
                             {
                                 bool shouldRunning = SupportedHealthChecksEnvironmentVariables.HCProcessOnlyIfRunnung.Value;
-                                if (shouldRunning && string.Compare(container.Status, runningStatus, StringComparison.InvariantCultureIgnoreCase) == 0)
+                                logger.LogDebug("Should running is {shouldRunning} Container {name} status is {status} state {state}", shouldRunning, container.GetName(), container.Status, container.State);
+                                if (shouldRunning && string.Compare(container.State, runningStatus, StringComparison.InvariantCultureIgnoreCase) != 0)
                                 {
                                     continue;
                                 }
@@ -48,13 +49,21 @@ namespace EBCEYS.HealthChecksService.Middle
                                 }
                                 logger.LogInformation("Container {name} is unhealthy", container.GetName());
 
-                                if (containerHealths.TryGetValue(container.ID, out HealthStatus prevStatus) && prevStatus != HealthStatus.Unhealthy)
+                                if (containerHealths.TryGetValue(container.ID, out int prevStatus) && prevStatus > SupportedHealthChecksEnvironmentVariables.HCUnhealthyCount.Value)
                                 {
                                     queue.Enqueue(container, docker, stoppingToken);
                                 }
                             }
 
-                            containerHealths[container.ID] = healthStatus.Value.Status;
+                            if (containerHealths.TryGetValue(container.ID, out _))
+                            {
+                                if (healthStatus.Value.Status == HealthStatus.Unhealthy)
+                                {
+                                    containerHealths[container.ID]++;
+                                    continue;
+                                }
+                            }
+                            containerHealths[container.ID] = 0;
                         }
                     }
                 }
