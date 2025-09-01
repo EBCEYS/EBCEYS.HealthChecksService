@@ -19,7 +19,7 @@ namespace EBCEYS.HealthChecksService.Environment
         private const string healthChecksProcessorPeriod = "HEALTHCHECKS_PROCESSOR_PERIOD";
         private const string usePingHealthChecks = "HEALTHCHECKS_USE_PING";
         private const string servicesHCConfigFilePath = "HEALTHCHECKS_SERVICE_CONFIG_FILE";
-        private const string processHCIfContainerIsRunning = "HEALTHCHECKS_PROCESS_ONLY_IF_CONTAINER_RUNNING";
+        private const string processHCIfContainerStateIs = "HEALTHCHECKS_PROCESS_ONLY_IF_CONTAINER_STATE_IS";
         private const string healthChecksUnhealthyCount = "HEALTHCHECKS_PROCESS_START_PROCESS_AFTER_UNHEALTHY_COUNT";
         //HC - HealthChecks
         public static ServiceEnvironmentVariable<string> HCEnabledLabel { get; } = new(healthChecksEnabledLabel, "healthchecks.enabled");
@@ -28,10 +28,11 @@ namespace EBCEYS.HealthChecksService.Environment
         public static ServiceEnvironmentVariable<string> HCIsEbceysLabel { get; } = new(healthChecksIsEBCEYSHealthChecksLabel, "healthchecks.isebceys");
         public static ServiceEnvironmentVariable<bool> HCSaveLogs { get; } = new(saveLogsIfUnhealthy, true);
         public static ServiceEnvironmentVariable<string> HCHostNameLabel { get; } = new(healthChecksHostNameLabel, "healthchecks.hostname");
-        public static ServiceEnvironmentVariable<TimeSpan?> HCProcessorPeriod { get; } = new(healthChecksProcessorPeriod, TimeSpan.FromSeconds(5.0));
+        public static ServiceEnvironmentVariable<TimeSpan> HCProcessorPeriod { get; } = new(healthChecksProcessorPeriod, TimeSpan.FromSeconds(5.0));
         public static ServiceEnvironmentVariable<bool> HCUsePing { get; } = new(usePingHealthChecks, false);
         public static ServiceEnvironmentVariable<string> HCServicesFile { get; } = new(servicesHCConfigFilePath, null);
-        public static ServiceEnvironmentVariable<bool> HCProcessOnlyIfRunnung { get; } = new(processHCIfContainerIsRunning, true);
+        //TODO: вынести это значение в лейбл контейнера...
+        public static ServiceEnvironmentVariable<string> HCProcessOnlyIfContainerState { get; } = new(processHCIfContainerStateIs, null);
         public static ServiceEnvironmentVariable<uint> HCUnhealthyCount { get; } = new(healthChecksUnhealthyCount, 5);
     }
     public static class SupportedDockerEnvironmentVariables

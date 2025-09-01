@@ -13,7 +13,6 @@ namespace EBCEYS.HealthChecksService.Middle
 {
     public class HealthChecksProcessorService(ILogger<HealthChecksProcessorService> logger, HealthCheckService health, ContainerProcessingQueueStorage queue, DockerController docker, IMemoryCache cache) : BackgroundService
     {
-        private const string runningStatus = "running";
         private readonly ConcurrentDictionary<string, ContainerHealthInfo> containerHealths = [];
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
@@ -25,6 +24,7 @@ namespace EBCEYS.HealthChecksService.Middle
                     HealthReport healthResult = await health.CheckHealthAsync(stoppingToken);
                     foreach (KeyValuePair<string, HealthReportEntry> healthStatus in healthResult.Entries)
                     {
+                        string healthStatusKey = healthStatus.Key;
                         if (cache.TryGetValue(healthStatus.Value.Tags.FirstOrDefault() ?? "unknown", out ContainerListResponse? container) && container != null)
                         {
                             bool healthCheckEnabled = container.Labels.GetLabel<bool>(SupportedHealthChecksEnvironmentVariables.HCEnabledLabel.Value!)?.Value == true;
@@ -32,11 +32,12 @@ namespace EBCEYS.HealthChecksService.Middle
                             {
                                 continue;
                             }
+                            containerHealths.TryAdd(healthStatusKey, new());
                             if (healthStatus.Value.Status == HealthStatus.Unhealthy)
                             {
-                                bool shouldRunning = SupportedHealthChecksEnvironmentVariables.HCProcessOnlyIfRunnung.Value;
-                                logger.LogDebug("Should running is {shouldRunning} Container {name} status is {status} state {state}", shouldRunning, container.GetName(), container.Status, container.State);
-                                if (shouldRunning && string.Compare(container.State, runningStatus, StringComparison.InvariantCultureIgnoreCase) != 0)
+                                string? runningState = SupportedHealthChecksEnvironmentVariables.HCProcessOnlyIfContainerState.Value;
+                                logger.LogDebug("Should state {shouldRunning} Container {name} status is {status} state {state}", runningState, container.GetName(), container.Status, container.State);
+                                if (runningState != null && string.Compare(container.State, runningState, StringComparison.InvariantCultureIgnoreCase) != 0)
                                 {
                                     continue;
                                 }
@@ -49,23 +50,24 @@ namespace EBCEYS.HealthChecksService.Middle
                                 }
                                 logger.LogInformation("Container {name} is unhealthy", container.GetName());
 
-                                if (containerHealths.TryGetValue(container.ID, out ContainerHealthInfo? healthInfo) && healthInfo != null && healthInfo.Status != HealthStatus.Unhealthy&& healthInfo.UnhealthyCount > SupportedHealthChecksEnvironmentVariables.HCUnhealthyCount.Value)
+                                if (containerHealths.TryGetValue(healthStatusKey, out ContainerHealthInfo? healthInfo) && healthInfo != null && !healthInfo.Processed && healthInfo.UnhealthyCount > SupportedHealthChecksEnvironmentVariables.HCUnhealthyCount.Value)
                                 {
-                                    healthInfo.Status = HealthStatus.Unhealthy;
+                                    healthInfo.Processed = true;
+                                    //TODO: validate data before enquing tasks
                                     queue.Enqueue(container, docker, stoppingToken);
                                 }
                             }
 
-                            if (containerHealths.TryGetValue(container.ID, out _))
+                            if (containerHealths.TryGetValue(healthStatusKey, out ContainerHealthInfo? info) && info != null)
                             {
                                 if (healthStatus.Value.Status == HealthStatus.Unhealthy)
                                 {
-                                    containerHealths[container.ID].PlusOne();
+                                    info.PlusOne();
+                                    logger.LogDebug("Current unhealthy count for container {name} is {count} and container processed is {processed}", container.GetName(), info.UnhealthyCount, info.Processed);
                                     continue;
                                 }
                             }
-                            containerHealths[container.ID] ??= new();
-                            containerHealths[container.ID].SetDefault();
+                            containerHealths[healthStatusKey].SetDefault();
                         }
                     }
                 }
@@ -73,17 +75,17 @@ namespace EBCEYS.HealthChecksService.Middle
                 {
                     logger.LogError(ex, "Error on healthchecks processing!");
                 }
-                await Task.Delay(SupportedHealthChecksEnvironmentVariables.HCProcessorPeriod.Value!.Value, stoppingToken);
+                await Task.Delay(SupportedHealthChecksEnvironmentVariables.HCProcessorPeriod.Value, stoppingToken);
             }
         }
         private class ContainerHealthInfo
         {
-            public int UnhealthyCount {get;set;} = 0;
-            public HealthStatus Status {get;set;} = HealthStatus.Healthy;
-            public void SetDefault(HealthStatus status = HealthStatus.Healthy)
+            public uint UnhealthyCount {get;set;} = 0;
+            public bool Processed {get;set;} = false;
+            public void SetDefault()
             {
                 UnhealthyCount = 0;
-                Status = status;
+                Processed = false;
             }
             public void PlusOne()
             {

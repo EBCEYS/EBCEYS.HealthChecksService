@@ -10,7 +10,8 @@ namespace EBCEYS.HealthChecksService.CustomHealthChecks.Services
         #region JsonOptions
         public static JsonSerializerOptions JsonOpts { get; } = new(JsonSerializerDefaults.Web)
         {
-            Converters = { new JsonStringEnumConverter<SupportedHealthCheckServices>() }
+            Converters = { new JsonStringEnumConverter<SupportedHealthCheckServices>() },
+            IgnoreReadOnlyProperties = true
         };
         public static ServiceHealthChecksOptions? CreateFromJson(byte[] json)
         {
@@ -29,6 +30,7 @@ namespace EBCEYS.HealthChecksService.CustomHealthChecks.Services
     public enum SupportedHealthCheckServices
     {
         None,
+        Http,
         RabbitMQ,
         PostgreSQL,
         Redis,
@@ -40,5 +42,6 @@ namespace EBCEYS.HealthChecksService.CustomHealthChecks.Services
         public required string ServiceName { get; set; }
         public required string ConnectionString { get; set; }
         public required string Container { get; set; }
+        public TimeSpan Timeout { get; set; }
     }
 }

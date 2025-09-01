@@ -1,4 +1,5 @@
 using Docker.DotNet.Models;
+using EBCEYS.ContainersEnvironment.Extensions;
 using EBCEYS.ContainersEnvironment.HealthChecks.Extensions;
 using EBCEYS.HealthChecksService.CustomHealthChecks.Containers;
 using EBCEYS.HealthChecksService.CustomHealthChecks.Services;
@@ -59,7 +60,6 @@ namespace EBCEYS.HealthChecksService
         private static async Task ConfigureServices(WebApplicationBuilder builder)
         {
             builder.Services.AddRouting(r => r.LowercaseUrls = true);
-            builder.Services.ConfigureHealthChecks();
 
             builder.Services.AddMemoryCache();
             builder.Services.AddSingleton<DockerController>(Docker);
@@ -69,11 +69,15 @@ namespace EBCEYS.HealthChecksService
             builder.Services.AddHostedService<HealthChecksProcessorService>();
 
             IEnumerable<ContainerListResponse> containers = await Docker.GetHealthcheckableContainersAsync();
-            IHealthChecksBuilder healthCheckBuilder = builder.Services.AddHealthChecks();
+            IHealthChecksBuilder healthCheckBuilder = builder.Services.ConfigureHealthChecks()!;
             foreach (ContainerListResponse container in containers)
             {
-                string healthCheckName = $"{container.GetName()}{ebceysHealthChecksPostfix}";
-                healthCheckBuilder.AddCheck<EBCEYSHealthCheck>(healthCheckName, timeout: TimeSpan.FromSeconds(10.0), tags: [container.ID]);
+                string isEbceysLabel = SupportedHealthChecksEnvironmentVariables.HCIsEbceysLabel.Value!;
+                if (container.Labels.GetLabel<bool>(isEbceysLabel)?.Value == true)
+                {
+                    string healthCheckName = $"{container.GetName()}{ebceysHealthChecksPostfix}";
+                    healthCheckBuilder.AddCheck<EBCEYSHealthCheck>(healthCheckName, timeout: TimeSpan.FromSeconds(10.0), tags: [container.ID]);
+                }
                 if (SupportedHealthChecksEnvironmentVariables.HCUsePing.Value)
                 {
                     string pingHealthCheckName = $"{container.GetName()}{pingHealthChecksPostfix}";
@@ -81,6 +85,7 @@ namespace EBCEYS.HealthChecksService
                 }
             }
             //TODO: now test with some service which can send unhealthy to check healths
+            //TODO: add connection timeout...
             ServiceHealthChecksOptions? serviceOptions = ServiceHealthChecksOptions.CreateFromJsonFile(SupportedHealthChecksEnvironmentVariables.HCServicesFile.Value);
             healthCheckBuilder.ConfigureServicesHealthChecks(containers, serviceOptions, LogManager.GetCurrentClassLogger(), true);
             builder.Services.AddHealthChecksUI(setup =>
@@ -95,7 +100,7 @@ namespace EBCEYS.HealthChecksService
                 string route = uriB.ToString();
                 setup.AddHealthCheckEndpoint("containers", route);
                 setup.MaximumHistoryEntriesPerEndpoint(5);
-                setup.SetEvaluationTimeInSeconds(Convert.ToInt32(SupportedHealthChecksEnvironmentVariables.HCProcessorPeriod.Value!.Value.TotalSeconds));
+                setup.SetEvaluationTimeInSeconds(Convert.ToInt32(SupportedHealthChecksEnvironmentVariables.HCProcessorPeriod.Value.TotalSeconds));
             }).AddInMemoryStorage();
 
 

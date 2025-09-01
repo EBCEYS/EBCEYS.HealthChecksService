@@ -1,8 +1,11 @@
 ﻿using Docker.DotNet.Models;
 using EBCEYS.HealthChecksService.Docker.Extensions;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using MongoDB.Driver;
 using NLog;
 using RabbitMQ.Client;
+using RabbitMQ.Client.Exceptions;
+using ILogger = Microsoft.Extensions.Logging.ILogger;
 
 namespace EBCEYS.HealthChecksService.CustomHealthChecks.Services
 {
@@ -32,29 +35,42 @@ namespace EBCEYS.HealthChecksService.CustomHealthChecks.Services
                     IEnumerable<string> tags = [container.ID];
                     switch (hc.Key)
                     {
-                        case SupportedHealthCheckServices.RabbitMQ:
-                            hb.AddRabbitMQ(sp =>
+                        case SupportedHealthCheckServices.Http:
+                            hb.AddAsyncCheck(name, async () =>
                             {
-                                return new ConnectionFactory()
+                                using HttpClient client = new()
                                 {
-                                    Uri = new(service.ConnectionString)
+                                    Timeout = service.Timeout
+                                };
+                                HttpResponseMessage response = await client.GetAsync(service.ConnectionString);
+                                HealthStatus status = response.IsSuccessStatusCode ? HealthStatus.Healthy : HealthStatus.Unhealthy;
+                                return new HealthCheckResult(status);
+                            }, tags: tags, timeout: service.Timeout);
+                            break;
+                        case SupportedHealthCheckServices.RabbitMQ:
+                            hb.AddRabbitMQ(async sp =>
+                            {
+                                return await new ConnectionFactory()
+                                {
+                                    Uri = new(service.ConnectionString),
+                                    RequestedConnectionTimeout = service.Timeout,
                                 }.CreateConnectionAsync();
-                            }, name: name, tags: tags);
+                            }, name: name, tags: tags, timeout: service.Timeout, failureStatus: HealthStatus.Unhealthy);
                             break;
                         case SupportedHealthCheckServices.PostgreSQL:
-                            hb.AddNpgSql(service.ConnectionString, name: name, tags: tags);
+                            hb.AddNpgSql(service.ConnectionString, name: name, tags: tags, timeout: service.Timeout, failureStatus: HealthStatus.Unhealthy);
                             break;
                         case SupportedHealthCheckServices.Redis:
-                            hb.AddRedis(service.ConnectionString, name, tags: tags);
+                            hb.AddRedis(service.ConnectionString, name, tags: tags, timeout: service.Timeout, failureStatus: HealthStatus.Unhealthy);
                             break;
                         case SupportedHealthCheckServices.MongoDB:
                             hb.AddMongoDb(sp =>
                             {
                                 return new MongoClient(service.ConnectionString);
-                            }, name: name, tags: tags);
+                            }, name: name, tags: tags, timeout: service.Timeout, failureStatus: HealthStatus.Unhealthy);
                             break;
                         case SupportedHealthCheckServices.ElasticSearch:
-                            hb.AddElasticsearch(service.ConnectionString, name, tags: tags);
+                            hb.AddElasticsearch(service.ConnectionString, name, tags: tags, timeout: service.Timeout);
                             break;
                         default:
                             logger?.Warn("For service {name} of container {container} type is not supported!", service.ServiceName, service.Container);
