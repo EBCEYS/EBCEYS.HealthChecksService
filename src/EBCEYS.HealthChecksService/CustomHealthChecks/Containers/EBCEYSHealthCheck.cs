@@ -10,75 +10,73 @@ using HealthChecks.UI.Core;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
-namespace EBCEYS.HealthChecksService.CustomHealthChecks.Containers
+namespace EBCEYS.HealthChecksService.CustomHealthChecks.Containers;
+
+public class EbceysHealthCheck(IMemoryCache cache) : IHealthCheck
 {
-    public class EBCEYSHealthCheck(IMemoryCache cache) : IHealthCheck
+    private readonly JsonSerializerOptions _jsonOpts = new(JsonSerializerDefaults.Web)
     {
-        private readonly JsonSerializerOptions jsonOpts = new(JsonSerializerDefaults.Web)
+        Converters =
         {
-            Converters =
-            {
-                new JsonStringEnumConverter(namingPolicy: null, allowIntegerValues: true)
-            }
+            new JsonStringEnumConverter(null)
+        }
+    };
+
+    public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context,
+        CancellationToken cancellationToken = default)
+    {
+        if (!cache.TryGetValue(context.Registration.Tags.First(), out ContainerListResponse? container) ||
+            container == null) return HealthCheckResult.Degraded("Containers info has expired in cache!");
+        var containerName = container.GetName().TrimStart('/');
+        var healthCheckEnabled =
+            container.Labels.GetLabel<bool>(SupportedHealthChecksEnvironmentVariables.HcEnabledLabel.Value!)?.Value ==
+            true;
+        var isEbceysHealthChecks =
+            container.Labels.GetLabel<bool>(SupportedHealthChecksEnvironmentVariables.HcIsEbceysLabel.Value!)?.Value ==
+            true;
+        if (!healthCheckEnabled || !isEbceysHealthChecks)
+            return HealthCheckResult.Healthy($"Container {containerName} is uncheckable!");
+        var hostName =
+            container.Labels.GetLabel<string>(SupportedHealthChecksEnvironmentVariables.HcHostNameLabel.Value!)
+                ?.Value ?? containerName.TrimStart('/');
+        var port =
+            container.Labels.GetLabel<int>(SupportedHealthChecksEnvironmentVariables.HcPortLabel.Value!)?.Value ?? 8080;
+        UriBuilder uriBuilder = new()
+        {
+            Scheme = "http",
+            Host = hostName,
+            Port = port,
+            Path = ServiceHealthChecksRoutes.HealthzStatusRoute.TrimStart('/')
         };
-
-        public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
+        using HttpClient client = new()
         {
-            if (!cache.TryGetValue(context.Registration.Tags.First(), out ContainerListResponse? container) || container == null)
-            {
-                return HealthCheckResult.Degraded("Containers info has expired in cache!");
-            }
-            string containerName = container.GetName().TrimStart('/');
-            bool healthCheckEnabled = container.Labels.GetLabel<bool>(SupportedHealthChecksEnvironmentVariables.HCEnabledLabel.Value!)?.Value == true;
-            bool isEbceysHealthChecks = container.Labels.GetLabel<bool>(SupportedHealthChecksEnvironmentVariables.HCIsEbceysLabel.Value!)?.Value == true;
-            if (!healthCheckEnabled || !isEbceysHealthChecks)
-            {
-                return HealthCheckResult.Healthy($"Container {containerName} is uncheckable!");
-            }
-            string hostName = container.Labels.GetLabel<string>(SupportedHealthChecksEnvironmentVariables.HCHostNameLabel.Value!)?.Value ?? containerName.TrimStart('/');
-            int port = container.Labels.GetLabel<int>(SupportedHealthChecksEnvironmentVariables.HCPortLabel.Value!)?.Value ?? 8080;
-            UriBuilder uriBuilder = new()
-            {
-                Scheme = "http",
-                Host = hostName,
-                Port = port,
-                Path = ServiceHealthChecksRoutes.HealthzStatusRoute.TrimStart('/')
-            };
-            using HttpClient client = new()
-            {
-                Timeout = context.Registration.Timeout,
-            };
-            try
-            {
-                HttpResponseMessage response = await client.GetAsync(uriBuilder.Uri, cancellationToken);
-
-                UIHealthReport? health = await response.Content.ReadFromJsonAsync<UIHealthReport>(jsonOpts, cancellationToken);
-                StringBuilder sb = new();
-                string resultName = $"{containerName} healthz result:";
-                sb.AppendLine(resultName);
-                if (health?.Entries != null)
-                {
-                    foreach (KeyValuePair<string, UIHealthReportEntry> entry in health.Entries)
-                    {
-                        sb.AppendLine($"{entry.Key} : {entry.Value.Description} duration: {entry.Value.Duration}");
-                    }
-                }
-                Dictionary<string, object>? data = GetData(health?.Entries);
-                if (health == null || health.Status == UIHealthStatus.Unhealthy)
-                {
-                    return HealthCheckResult.Unhealthy(sb.ToString(), data: data);
-                }
-                return HealthCheckResult.Healthy(sb.ToString(), data);
-            }
-            catch (Exception ex)
-            {
-                return HealthCheckResult.Unhealthy($"Error on sending request to container {containerName}", ex);
-            }
-        }
-
-        private static Dictionary<string, object>? GetData(IReadOnlyDictionary<string, UIHealthReportEntry>? entries)
+            Timeout = context.Registration.Timeout
+        };
+        try
         {
-            return entries?.Select(x => new KeyValuePair<string, object>(x.Key, x.Value)).ToDictionary();
+            var response = await client.GetAsync(uriBuilder.Uri, cancellationToken);
+
+            var health = await response.Content.ReadFromJsonAsync<UIHealthReport>(_jsonOpts, cancellationToken);
+            StringBuilder sb = new();
+            var resultName = $"{containerName} healthz result:";
+            sb.AppendLine(resultName);
+            if (health?.Entries != null)
+                foreach (var entry in health.Entries)
+                    sb.AppendLine($"{entry.Key} : {entry.Value.Description} duration: {entry.Value.Duration}");
+
+            var data = GetData(health?.Entries);
+            if (health == null || health.Status == UIHealthStatus.Unhealthy)
+                return HealthCheckResult.Unhealthy(sb.ToString(), data: data);
+            return HealthCheckResult.Healthy(sb.ToString(), data);
         }
+        catch (Exception ex)
+        {
+            return HealthCheckResult.Unhealthy($"Error on sending request to container {containerName}", ex);
+        }
+    }
+
+    private static Dictionary<string, object>? GetData(IReadOnlyDictionary<string, UIHealthReportEntry>? entries)
+    {
+        return entries?.Select(x => new KeyValuePair<string, object>(x.Key, x.Value)).ToDictionary();
     }
 }

@@ -1,19 +1,14 @@
 ﻿using Docker.DotNet;
 using Docker.DotNet.Models;
-using EBCEYS.HealthChecksService.Extensions;
 
-namespace EBCEYS.HealthChecksService.Middle.TaskProcessor
+namespace EBCEYS.HealthChecksService.Middle.TaskProcessor;
+
+public class ContainerTaskToProcessInfo(
+    ContainerListResponse container,
+    Func<Task>? restartTask,
+    Func<Task<MultiplexedStream>>? saveLogTask)
 {
-    public class ContainerTaskToProcessInfo(ContainerListResponse container, Task? restartTask, Task<MultiplexedStream>? saveLogTask) : IDisposable
-    {
-        public ContainerListResponse Container { get; } = container;
-        public Task<MultiplexedStream>? GetLogTask { get; } = saveLogTask;
-        public Task? RestartTask { get; } = restartTask;
-
-        public void Dispose()
-        {
-            GetLogTask?.TryDispose();
-            RestartTask?.TryDispose();
-        }
-    }
+    public ContainerListResponse Container { get; } = container;
+    public Func<Task<MultiplexedStream>>? GetLogTask { get; } = saveLogTask;
+    public Func<Task>? RestartTask { get; } = restartTask;
 }
