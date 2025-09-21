@@ -6,11 +6,13 @@ services:
       - HEALTHCHECKS_STARTING_PORT=8080
       - DOCKER_CONNECTION_USE_DEFAULT=true
       - HEALTHCHECKS_SAVE_LOGS_ON_UNHEALTHY=true
+      - NOTIFICATIONS_TELEGRAM_APIKEY=<somekey>
     build:
       context: .
       dockerfile: EBCEYS.HealthChecksService/Dockerfile
     volumes:
-      - C:\\testhealthchecks:/healthchecks
+      - ~/testhealthchecks/health:/healthchecks
+      - ~/testhealthchecks/db:/db
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - testnet

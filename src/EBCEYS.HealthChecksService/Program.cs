@@ -8,7 +8,12 @@ using EBCEYS.HealthChecksService.Docker;
 using EBCEYS.HealthChecksService.Docker.Extensions;
 using EBCEYS.HealthChecksService.Environment;
 using EBCEYS.HealthChecksService.Middle;
+using EBCEYS.HealthChecksService.Middle.Notifications.Telegram;
+using EBCEYS.HealthChecksService.Middle.Notifications.Telegram.Commands.Database;
+using EBCEYS.HealthChecksService.Middle.Notifications.Telegram.Database;
 using EBCEYS.HealthChecksService.Middle.TaskProcessor;
+using EBCEYS.HealthChecksService.SystemObjects;
+using Microsoft.EntityFrameworkCore;
 using NLog;
 using NLog.Web;
 using PingHealthCheck = EBCEYS.HealthChecksService.CustomHealthChecks.Containers.PingHealthCheck;
@@ -62,13 +67,24 @@ public class Program
         builder.Services.AddRouting(r => r.LowercaseUrls = true);
 
         builder.Services.AddMemoryCache();
+        builder.Services.AddDbContext<TelegramDbContext>(opts =>
+            opts.UseSqlite($"Data Source={SupportedTelegramEnvironmentVariables.DatabasePath.Value}"));
+
+        builder.Services.AddHostedService<BeforeStartService>();
+
+        builder.Services.AddSingleton<HealthChecksNotificationsQueue>();
+        builder.Services.AddCreateSubscriberCommand();
+        builder.Services.AddChangeSubscriberActivityCommand();
+        builder.Services.AddGetActiveSubscribersCommand();
+        builder.Services.AddHostedService<TelegramNotificationsService>();
+
         builder.Services.AddSingleton<DockerController>(Docker);
         builder.Services.AddHostedService<DockerCacheProcessorService>();
         builder.Services.AddSingleton<ContainerProcessingQueueStorage>();
         builder.Services.AddHostedService<TasksProcessorService>();
         builder.Services.AddHostedService<HealthChecksProcessorService>();
 
-        var containers = await Docker.GetHealthcheckableContainersAsync();
+        var containers = (await Docker.GetHealthcheckableContainersAsync()).ToArray();
         var healthCheckBuilder = builder.Services.ConfigureHealthChecks()!;
         foreach (var container in containers)
         {

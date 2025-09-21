@@ -25,3 +25,8 @@
 * *DOCKER_CONNECTION_USE_DEFAULT* - *true/false*. По умолчанию *true*. Устанавливать связь с докером с путем по умолчанию (*unix:///var/run/docker.sock* - для linux).
 * *DOCKER_CONNECTION_URL* - URL для подключения к *docker*. По умолчанию *unix:///var/run/docker.sock*. Игнорируется если *DOCKER_CONNECTION_USE_DEFAULT=true*.
 * *DOCKER_CONNECTION_DEFAULT_TIMEOUT* - таймаут подключения к *docker*. По умолчанию *00:00:10*.
+
+## *NOTIFICATIONS_\**
+
+* *NOTIFICATIONS_TELEGRAM_DB_PATH* - */path/to/file.db*. По умолчанию */db/tg.db*. Путь до файла *sqlite* базы данных.
+* *NOTIFICATIONS_TELEGRAM_APIKEY* - *<some_key>*. По умолчанию *null*. Апи ключ вашего бота в телеграмм, который будет отправлять уведомления. Если *null* или не определено, функционал не включается.

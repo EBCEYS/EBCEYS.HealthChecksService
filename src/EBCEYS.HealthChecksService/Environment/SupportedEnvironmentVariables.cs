@@ -9,6 +9,17 @@ public static class SupportedLogSaverEnvironmentVariables
     public static ServiceEnvironmentVariable<string> BaseSavePath { get; } = new(LogSavePath, "/healthchecks/logs");
 }
 
+public static class SupportedTelegramEnvironmentVariables
+{
+    private const string DatabasePathName = "NOTIFICATIONS_TELEGRAM_DB_PATH";
+    private const string TelegramBotKeyPathName = "NOTIFICATIONS_TELEGRAM_APIKEY";
+
+    public static ServiceEnvironmentVariable<string> DatabasePath { get; } = new(DatabasePathName, "/db/tg.db");
+
+    public static ServiceEnvironmentVariable<string?> TelegramBotKey { get; } = new(TelegramBotKeyPathName, null,
+        "The api key for telegram bot. Null if don't want to have tg notifications.");
+}
+
 public static class SupportedHealthChecksEnvironmentVariables
 {
     private const string HealthChecksEnabledLabel = "HEALTHCHECKS_LABEL_ENABLED_NAME";

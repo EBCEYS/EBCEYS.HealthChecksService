@@ -5,6 +5,7 @@ using EBCEYS.ContainersEnvironment.HealthChecks;
 using EBCEYS.HealthChecksService.Docker;
 using EBCEYS.HealthChecksService.Docker.Extensions;
 using EBCEYS.HealthChecksService.Environment;
+using EBCEYS.HealthChecksService.Middle.Notifications.Telegram;
 using EBCEYS.HealthChecksService.Middle.TaskProcessor;
 using HealthChecks.UI.Core;
 using Microsoft.Extensions.Caching.Memory;
@@ -15,7 +16,8 @@ namespace EBCEYS.HealthChecksService.Middle;
 public class HealthChecksProcessorService(
     ILogger<HealthChecksProcessorService> logger,
     HealthCheckService health,
-    ContainerProcessingQueueStorage queue,
+    ContainerProcessingQueueStorage processingQueue,
+    HealthChecksNotificationsQueue notesQueue,
     DockerController docker,
     IMemoryCache cache) : BackgroundService
 {
@@ -23,6 +25,7 @@ public class HealthChecksProcessorService(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
         logger.LogInformation("Starting healthchecks processor...");
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -41,6 +44,7 @@ public class HealthChecksProcessorService(
                     _containerHealths.TryAdd(healthStatusKey, new ContainerHealthInfo());
                     if (reportEntry.Status == HealthStatus.Unhealthy)
                     {
+                        await notesQueue.EnqueueAsync(container, reportEntry, stoppingToken);
                         var runningState = SupportedHealthChecksEnvironmentVariables.HcProcessOnlyIfContainerState
                             .Value;
                         logger.LogDebug(
@@ -62,7 +66,7 @@ public class HealthChecksProcessorService(
                             SupportedHealthChecksEnvironmentVariables.HcUnhealthyCount.Value)
                         {
                             healthInfo.Processed = true;
-                            await queue.Enqueue(container, docker, stoppingToken);
+                            await processingQueue.Enqueue(container, docker, stoppingToken);
                         }
                     }
 
